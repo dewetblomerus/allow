@@ -1,0 +1,13 @@
+services:
+  app:
+    image: hexpm/elixir:1.18.2-erlang-27.2.1-debian-bookworm-20250113-slim
+    environment:
+      - NEXT_DNS_API_KEY=${NEXT_DNS_API_KEY}
+      - NEXT_DNS_PROFILE_ID=${NEXT_DNS_PROFILE_ID}
+      - PUSHOVER_TOKEN=${PUSHOVER_TOKEN}
+      - PUSHOVER_USER=${PUSHOVER_USER}
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: elixir allow.exs

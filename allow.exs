@@ -1,5 +1,4 @@
 Mix.install([
-  {:bandit, "~> 1.6"},
   {:req, "~> 0.5"}
 ])
 

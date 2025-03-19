@@ -42,7 +42,7 @@ defmodule Pushover do
 
     params = %{
       message: message,
-      priority: 0,
+      priority: 1,
       device: "DeWet-Phone",
       sound: "siren",
       token: @pushover_token,

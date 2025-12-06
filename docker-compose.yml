@@ -1,6 +1,10 @@
 services:
   app:
     image: hexpm/elixir:1.19.4-erlang-28.2-debian-trixie-20251117-slim
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     container_name: allow
     environment:
       - NEXT_DNS_API_KEY=${NEXT_DNS_API_KEY}

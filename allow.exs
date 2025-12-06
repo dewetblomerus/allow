@@ -7,7 +7,27 @@ defmodule NextDns do
   @profile_id System.fetch_env!("NEXT_DNS_PROFILE_ID")
   @base_url "https://api.nextdns.io"
 
-  def get_denylist() do
+  def get_messages() do
+    get_disabled_denylist_items()
+  end
+
+  defp get_disabled_denylist_items() do
+    get_denylist()
+    |> Enum.reject(fn deny_item -> Map.get(deny_item, "active") end)
+    |> Enum.map(fn deny_item -> Map.get(deny_item, "id") end)
+    |> Enum.join(",")
+    |> then(fn items ->
+      case items do
+        "" ->
+        dbg("🫙 Items is empty string 🫙")
+        nil
+        _ ->
+        "NextDns denylist items are disabled: #{items}"
+      end
+    end)
+  end
+
+  defp get_denylist() do
     response =
       Req.get!(
         "#{@base_url}/profiles/#{@profile_id}/denylist",
@@ -21,21 +41,29 @@ defmodule NextDns do
       _ -> {:error, "Failed to fetch denylist. Status: #{response.status}"}
     end
   end
+end
 
-  def get_disabled_denylist_items() do
-    get_denylist()
-    |> Enum.reject(fn deny_item -> Map.get(deny_item, "active") end)
-    |> Enum.map(fn deny_item -> Map.get(deny_item, "id") end)
-    |> Enum.join(",")
-    |> then(fn items -> "NextDns denylist items are disabled: #{items}" end)
+defmodule Unifi do
+  # @unifi_username System.fetch_env!("UNIFI_USERNAME")
+  # @unifi_password System.fetch_env!("UNIFI_PASSWORD")
+  @skipped_networks ["Tulia DMZ", "Productivity Palace 🏯", "The Fort 🏰"]
+
+  def get_messages() do
+    get_networks_without_mac_address_filters()
   end
+
+  def get_networks_without_mac_address_filters() do
+    # Placeholder for Unifi client fetching logic
+    nil
+  end
+
 end
 
 defmodule Pushover do
   @pushover_token System.fetch_env!("PUSHOVER_TOKEN")
   @pushover_user System.fetch_env!("PUSHOVER_USER")
 
-  def send_message(""), do: :ok
+  def send_message(nil), do: :ok
 
   def send_message(message) do
     dbg(message)
@@ -62,7 +90,10 @@ end
 
 defmodule Runner do
   def run() do
-    NextDns.get_disabled_denylist_items()
+    NextDns.get_messages()
+    |> Pushover.send_message()
+
+    Unifi.get_messages()
     |> Pushover.send_message()
 
     Process.sleep(2000)

@@ -27,6 +27,7 @@ defmodule NextDns do
     |> Enum.reject(fn deny_item -> Map.get(deny_item, "active") end)
     |> Enum.map(fn deny_item -> Map.get(deny_item, "id") end)
     |> Enum.join(",")
+    |> then(fn items -> "NextDns denylist items are disabled: #{items}" end)
   end
 end
 
@@ -37,7 +38,6 @@ defmodule Pushover do
   def send_message(""), do: :ok
 
   def send_message(message) do
-    message = "NextDns denylist items are disabled: #{message}"
     dbg(message)
 
     params = %{
@@ -54,7 +54,9 @@ defmodule Pushover do
       json: params
     )
 
-    Process.sleep(1000 * 60 * 10)
+    sleep_milliseconds = 1000 * 60 * 10
+    dbg("😴 Sleeping for #{sleep_milliseconds} milliseconds 😴")
+    Process.sleep(sleep_milliseconds)
   end
 end
 

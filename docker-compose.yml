@@ -1,6 +1,7 @@
 services:
   app:
     image: hexpm/elixir:1.19.4-erlang-28.2-debian-trixie-20251117-slim
+    container_name: allow
     environment:
       - NEXT_DNS_API_KEY=${NEXT_DNS_API_KEY}
       - NEXT_DNS_PROFILE_ID=${NEXT_DNS_PROFILE_ID}

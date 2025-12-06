@@ -19,7 +19,7 @@ defmodule NextDns do
     |> then(fn items ->
       case items do
         "" ->
-        dbg("🫙 Items is empty string 🫙")
+        dbg("✅ All NextDns denylist items enabled ✅")
         nil
         _ ->
         "NextDns denylist items are disabled: #{items}"
@@ -44,19 +44,136 @@ defmodule NextDns do
 end
 
 defmodule Unifi do
-  # @unifi_username System.fetch_env!("UNIFI_USERNAME")
-  # @unifi_password System.fetch_env!("UNIFI_PASSWORD")
+  @unifi_username System.fetch_env!("UNIFI_USERNAME")
+  @unifi_password System.fetch_env!("UNIFI_PASSWORD")
   @skipped_networks ["Tulia DMZ", "Productivity Palace 🏯", "The Fort 🏰"]
+  @controller_ip "10.0.0.10"
+  @port 8443
+  @site "default"
 
   def get_messages() do
     get_networks_without_mac_address_filters()
   end
 
   def get_networks_without_mac_address_filters() do
-    # Placeholder for Unifi client fetching logic
-    nil
+    with {:ok, cookie} <- login(),
+         {:ok, wlan_confs} <- get_wlan_confs(cookie) do
+      _ = logout(cookie)
+
+      misconfigured =
+        wlan_confs
+        |> Enum.reject(fn wlan ->
+          network_name = wlan["name"] || wlan["ssid"] || ""
+          Enum.member?(@skipped_networks, network_name)
+        end)
+        |> Enum.reject(fn wlan ->
+          wlan["mac_filter_enabled"] == true && wlan["mac_filter_policy"] in ["allow", :allow]
+        end)
+        |> Enum.map(fn wlan -> wlan["name"] || wlan["ssid"] || "Unknown" end)
+
+      case misconfigured do
+        [] ->
+          dbg("✅ All UniFi networks have MAC address allow list enabled ✅")
+          nil
+        networks -> "UniFi networks without MAC address allow list: #{Enum.join(networks, ", ")}"
+      end
+    else
+      {:error, _reason} -> nil
+    end
   end
 
+  defp req_options do
+    [
+      connect_options: [
+        transport_opts: [
+          verify: :verify_none,
+          verify_fun: {fn _, _, _ -> {:valid, :undefined} end, :undefined},
+          fail_if_no_peer_cert: false,
+          versions: [:"tlsv1.2", :"tlsv1.3"]
+        ]
+      ],
+      receive_timeout: 10_000
+    ]
+  end
+
+  defp req_headers(:login) do
+    [
+      {"Accept", "application/json"},
+      {"Content-Type", "application/json"}
+    ]
+  end
+
+  defp req_headers(:authenticated, cookie) do
+    [
+      {"Content-Type", "application/json"},
+      {"Cookie", cookie}
+    ]
+  end
+
+  defp login() do
+    url = "https://#{@controller_ip}:#{@port}/api/login"
+
+    body =
+      JSON.encode!(%{
+        username: @unifi_username,
+        password: @unifi_password,
+        remember: false
+      })
+
+    case Req.post(url, [body: body, headers: req_headers(:login)] ++ req_options()) do
+      {:ok, %Req.Response{status: 200, headers: response_headers}} ->
+        cookie = extract_cookie(response_headers)
+
+        if cookie == "" do
+          {:error, "Failed to retrieve session cookie from login response"}
+        else
+          {:ok, cookie}
+        end
+
+      {:ok, %Req.Response{status: status_code, body: response_body}} ->
+        {:error, "Login failed with status #{status_code}: #{inspect(response_body)}"}
+
+      {:error, reason} ->
+        {:error, "HTTP error during login: #{inspect(reason)}"}
+    end
+  end
+
+  defp logout(cookie) do
+    url = "https://#{@controller_ip}:#{@port}/api/logout"
+    _ = Req.post(url, [body: "{}", headers: req_headers(:authenticated, cookie)] ++ req_options())
+    :ok
+  end
+
+  defp extract_cookie(headers) do
+    case Map.get(headers, "set-cookie") do
+      cookie_value when is_binary(cookie_value) ->
+        cookie_value |> String.split(";") |> List.first()
+
+      cookie_list when is_list(cookie_list) ->
+        cookie_list |> List.first() |> String.split(";") |> List.first()
+
+      _ ->
+        ""
+    end
+  end
+
+  defp get_wlan_confs(cookie) do
+    url = "https://#{@controller_ip}:#{@port}/api/s/#{@site}/rest/wlanconf"
+
+    case Req.get(url, [headers: req_headers(:authenticated, cookie)] ++ req_options()) do
+      {:ok, %Req.Response{status: 200, body: %{"data" => data}}} when is_list(data) ->
+        {:ok, data}
+
+      {:ok, %Req.Response{status: 200, body: body}} ->
+        {:error, "Unexpected WLAN response format: #{inspect(body)}"}
+
+      {:ok, %Req.Response{status: status_code}} ->
+        {:error, "WLAN request failed with status #{status_code}"}
+
+      {:error, reason} ->
+        {:error, "HTTP error during WLAN request: #{inspect(reason)}"}
+    end
+  end
 end
 
 defmodule Pushover do

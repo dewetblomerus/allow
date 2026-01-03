@@ -46,10 +46,16 @@ end
 defmodule Unifi do
   @unifi_username System.fetch_env!("UNIFI_USERNAME")
   @unifi_password System.fetch_env!("UNIFI_PASSWORD")
-  @skipped_networks ["Tulia DMZ", "Productivity Palace 🏯", "The Fort 🏰"]
   @controller_ip "10.0.0.10"
   @port 8443
   @site "default"
+
+  @skipped_networks [
+    "Productivity Palace 🏯",
+    "The Fort 🏰",
+    "Trusted Things",
+    "Tulia DMZ"
+  ]
 
   def get_messages() do
     get_networks_without_mac_address_filters()
